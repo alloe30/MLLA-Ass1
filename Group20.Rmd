@@ -8,6 +8,6 @@ library(tidyverse)
 ```
 
 ```{r Load data}
-
+listings <- read_csv("listings.csv")
 ```
 
