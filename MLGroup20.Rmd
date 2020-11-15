@@ -1,0 +1,199 @@
+---
+title: "Pricing Model for Airbnb"
+author: "Maxime Boelen, Alexander Loer, Eva Nijssen & Yuhu Wang"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+## Setup
+
+We will use the following packages in this notebook:
+```{r message = FALSE}
+library("tidymodels")
+library("tidyverse")
+library("readr")
+library("stringr")
+```
+
+# Data Ingestion and Cleaning
+
+## Loading the Data
+
+```{r include=FALSE}
+col_spec <- cols(
+  id = col_integer(),
+  listing_url = col_character(),
+  scrape_id = col_double(),
+  last_scraped = col_date(),
+  name = col_character(),
+  summary = col_character(),
+  space = col_character(),
+  description = col_character(),
+  experiences_offered = col_character(),
+  neighborhood_overview = col_character(),
+  notes = col_character(),
+  transit = col_character(),
+  access = col_character(),
+  interaction = col_character(),
+  house_rules = col_character(),
+  thumbnail_url = col_character(),
+  medium_url = col_character(),
+  picture_url = col_character(),
+  xl_picture_url = col_character(),
+  host_id = col_integer(),
+  host_url = col_character(),
+  host_name = col_character(),
+  host_since = col_character(),
+  host_location = col_character(),
+  host_about = col_character(),
+  host_response_time = col_factor(levels = c("within an hour", "within a few hours", "within a day", "a few days or more", "N/A")),
+  host_response_rate = col_character(),
+  host_acceptance_rate = col_character(), # only contains N/A
+  host_is_superhost = col_factor(levels = c("t", "f")),
+  host_thumbnail_url = col_character(),
+  host_picture_url = col_character(),
+  host_neighbourhood = col_character(),
+  host_listings_count = col_integer(),
+  host_total_listings_count = col_integer(),
+  host_verifications = col_character(),
+  host_has_profile_pic = col_factor(levels = c("t", "f")),
+  host_identity_verified = col_factor(levels = c("t", "f")),
+  street = col_character(),
+  neighbourhood = col_character(),
+  neighbourhood_cleansed = col_character(),
+  neighbourhood_group_cleansed = col_character(),
+  city = col_character(),
+  state = col_character(),
+  zipcode = col_character(),
+  market = col_factor(levels = c("Amsterdam", "Barcelona", "Other (International)", "Vilnius")),
+  smart_location = col_character(),
+  country_code = col_character(),
+  country = col_character(),
+  latitude = col_character(),
+  longitude = col_character(),
+  is_location_exact = col_factor(levels = c("t", "f")),
+  property_type = col_character(),  # could be transformed to factor
+  room_type = col_factor(levels = c("Private room", "Entire home/apt", "Hotel room", "Shared room")),
+  accommodates = col_double(),
+  bathrooms = col_double(),
+  bedrooms = col_integer(),
+  beds = col_integer(),
+  bed_type = col_factor(levels = c("Real Bed", "Airbed", "Couch", "Futon", "Pull-out Sofa")),
+  amenities = col_character(),
+  square_feet = col_double(),
+  price = col_number(),
+  weekly_price = col_number(),
+  monthly_price = col_number(),
+  security_deposit = col_number(),
+  cleaning_fee = col_number(),
+  guests_included = col_integer(),
+  extra_people = col_number(),
+  minimum_nights = col_integer(),
+  maximum_nights = col_integer(),
+  minimum_minimum_nights = col_integer(),
+  maximum_minimum_nights = col_integer(),
+  minimum_maximum_nights = col_integer(),
+  maximum_maximum_nights = col_integer(),
+  minimum_nights_avg_ntm = col_double(),
+  maximum_nights_avg_ntm = col_double(),
+  calendar_updated = col_character(),
+  has_availability  = col_factor(levels = c("t", "f")), # has only true values
+  availability_30 = col_integer(),
+  availability_60 = col_integer(),
+  availability_90 = col_integer(),
+  availability_365 = col_integer(),
+  calendar_last_scraped = col_date(),
+  number_of_reviews = col_integer(),
+  number_of_reviews_ltm = col_integer(),
+  first_review = col_date(),
+  last_review = col_date(),
+  review_scores_rating = col_integer(),
+  review_scores_accuracy = col_integer(),
+  review_scores_cleanliness = col_integer(),
+  review_scores_checkin = col_integer(),
+  review_scores_communication = col_integer(),
+  review_scores_location = col_integer(),
+  review_scores_value = col_integer(),
+  requires_license  = col_factor(levels = c("t", "f")), # has only false values
+  license = col_character(), # empty
+  jurisdiction_names = col_character(),
+  instant_bookable  = col_factor(levels = c("t", "f")),
+  is_business_travel_ready  = col_factor(levels = c("t", "f")), # has only false values
+  cancellation_policy = col_factor(levels = c("strict_14_with_grace_period", "moderate", "flexible", "super_strict_30", "super_strict_60")),
+  require_guest_profile_picture = col_factor(levels = c("t", "f")),
+  require_guest_phone_verification = col_factor(levels = c("t", "f")),
+  calculated_host_listings_count = col_integer(),
+  calculated_host_listings_count_entire_homes = col_integer(),
+  calculated_host_listings_count_private_rooms = col_integer(),
+  calculated_host_listings_count_shared_rooms = col_integer(),
+  reviews_per_month = col_double()
+)
+
+df_listings <- read_csv("listings.csv", 
+                  col_names = TRUE, col_types = col_spec, na = c("N/A", ""))
+```
+
+## Create Subset with Relevant Variables
+
+```{r}
+df_listings <- df_listings %>% select(id, summary, host_since, host_location, host_response_time, host_response_rate, host_is_superhost, host_listings_count, host_total_listings_count, host_verifications, host_has_profile_pic, host_identity_verified, latitude, longitude, is_location_exact, property_type, room_type, accommodates, bathrooms, bedrooms, beds, bed_type, amenities, price, security_deposit, cleaning_fee, guests_included, extra_people, minimum_nights, maximum_nights, minimum_minimum_nights, maximum_minimum_nights, minimum_maximum_nights, maximum_maximum_nights, minimum_nights_avg_ntm, maximum_nights_avg_ntm, availability_30, availability_60, availability_90, availability_365, requires_license, instant_bookable, is_business_travel_ready, cancellation_policy, require_guest_profile_picture, require_guest_phone_verification, calculated_host_listings_count, calculated_host_listings_count_entire_homes, calculated_host_listings_count_private_rooms, calculated_host_listings_count_shared_rooms)
+```
+
+Reasons why vars are not included:
+
+no entries: experiences: , medium_url, host_acceptance_rate
+only true values: has_availability
+not available at start: number_of_reviews
+too many missing values: square feet
+
+## Clean Variables
+```{r}
+# Extract Numerical Variables
+df_listings <- df_listings %>%
+  mutate(host_since = as.numeric(str_extract(host_since, "^[[:digit:]]{4}")),
+         host_response_rate = as.numeric(str_extract(host_response_rate, "[[:digit:].]+")))
+```
+
+## Delete/Convert Missing Values
+
+```{r}
+colSums(is.na(df_listings))
+
+avg_resonse_time <- tail(names(sort(table(df_listings$host_response_time))), 1) # Get most frequent value of response time
+
+df_listings$host_response_time[is.na(df_listings$host_response_time)] <- avg_resonse_time # Fill na with most frequent value (average)
+df_listings$security_deposit[is.na(df_listings$security_deposit)] <- 0 # Empty field for security deposit -> no deposit (=0)
+df_listings$cleaning_fee[is.na(df_listings$cleaning_fee)] <- 0 # Empty field for cleaning fee -> no fee (=0)
+        
+df_listings <- df_listings %>% drop_na() # Delete remaining missing values
+colSums(is.na(df_listings))
+```
+
+## Feature engineering
+```{r}
+netherlands = c("Netherlands|NL")
+
+df_listings <- df_listings %>%
+  mutate(host_location = str_detect(host_location, netherlands), # Host is dutch or not dutch
+         latitude = as.factor(str_extract(latitude, "[[:digit:].]{4}")), # Factors for location (longitude/latitude)
+         longitude = as.factor(str_extract(longitude, "[[:digit:].]{4}")),
+         host_verifications = 1 + str_count(host_verifications, "', '"), # No. of verifications
+         amenities = 1 + str_count(amenities, ","), # No. of amenities
+         property_type = recode(property_type,"Townhouse" = "House", "Bungalow"="House", "Guesthouse"="House", "Tiny   house"="House", "Villa"="House","Aparthotel"="Hotel/Hostel", "Boutique hotel"="Hotel/Hostel","Hostel"="Hotel/Hostel", "Hotel"="Hotel/Hostel", "Barn"="Other", "Boat"="Other", "Bus"="Other","Cabin"="Other","Camper/RV"="Other","Campsite"="Other","Casa particular (Cuba)"="Other","Castle"="Other","Chalet"="Other","Cottage"="Other", "Dome house"="Other","Earth house"="Other","Farm stay"="Other", "Houseboat"="Other", "Island"="Other", "Lighthouse"="Other", "Yurt"="Other","Condominium"="Apartment", "Guest suite"="Apartment", "Loft"="Apartment", "Bed and breakfast"="Service", "Serviced apartment"="Service"),
+         property_type = factor(property_type, levels = c("Apartment", "Hotel/Hostel", "House", "Service", "Other")), # Classify property type
+         host_years = 2018 - host_since, # Years host has been on platform
+         host_response_rate = as.factor(df_listings$host_response_rate == 100)) # Does host respond to every request or not?
+
+df_listings <- select(df_listings, -c("host_since")) #Delete variables that are not needed anymore
+```
+
+Cleaned dataframe: df_listings!
+
+# Model Building
+
+## Linear or logistic regression
+
+## Ensemble method
+
+## Decision trees or k-nearest neighbours
